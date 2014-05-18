@@ -15,10 +15,13 @@ class cinderImageApp : public AppNative {
 	void update();
 	void draw();
     
+    void drawRepeatingTexture( const gl::Texture& tex, const Rectf& destRect, const Vec2f& textureBounds );
+    
     Surface pixelKidSurface; //actually Surface8u(nsigned int) there's also a Surface32f(loat)
     //perform C++ operations on a surface. Texture is for GPU
     Surface pixelKidResize;
     gl::Texture pixelKidTexture;
+    Vec2f texBounds;
 };
 
 void cinderImageApp::setup()
@@ -38,12 +41,12 @@ void cinderImageApp::setup()
         cout << "Premultiplied by its alpha channel!!\n";
     }
     
-    pixelKidResize = resizeCopy(pixelKidSurface, pixelKidSurface.getBounds(), Vec2i(app::getWindowWidth(), app::getWindowHeight()));
-    int pkrw = pixelKidSurface.getWidth();
-    int pkrh = pixelKidSurface.getHeight();
-    cout << "width:" << pkrw << ", height:" << pkrh << "\n";
+    pixelKidResize = resizeCopy(pixelKidSurface, pixelKidSurface.getBounds(), Vec2i(app::getWindowWidth()/4, app::getWindowHeight()/4));
+    texBounds = Vec2f(pixelKidResize.getWidth(), pixelKidResize.getHeight());
+    cout << "width:" << texBounds.x << ", height:" << texBounds.y << "\n";
+    cout << "window bounds:" << getWindowBounds() << "\n";
     
-    Area pkrarea(0, 0, pkrw, pkrh);
+    Area pkrarea(0, 0, texBounds.x, texBounds.y);
     Surface::Iter iter = pixelKidResize.getIter( pkrarea );
     while (iter.line())
     {
@@ -56,13 +59,9 @@ void cinderImageApp::setup()
     }
 
     
-
     pixelKidTexture = gl::Texture(pixelKidResize);
-    pixelKidTexture.setWrap(GL_REPEAT, GL_REPEAT);
+    pixelKidTexture.setWrap(GL_REPEAT, GL_REPEAT); //only repeats with some texture coordinate mapping.
     //pixelKidTexture.enableMipmapping
-    
-    
-    
 }
 
 void cinderImageApp::update()
@@ -73,7 +72,37 @@ void cinderImageApp::draw()
 {
 	// clear out the window with black
 	gl::clear( Color( 0, 0, 0 ) );
-    gl::draw(pixelKidTexture, getWindowBounds());
+    gl::draw(pixelKidTexture, getWindowBounds(), getWindowBounds()); //weird eh?
+}
+
+void cinderImageApp::drawRepeatingTexture( const gl::Texture& tex, const Rectf& destRect, const Vec2f& textureBounds ) //doesn't work right.
+{
+    tex.enableAndBind();
+    
+    glEnableClientState( GL_VERTEX_ARRAY );
+    glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+    
+    GLfloat verts[8];
+    GLfloat	texCoords[8];
+    glVertexPointer( 2, GL_FLOAT, 0, verts );
+    glTexCoordPointer( 2, GL_FLOAT, 0, texCoords );
+    
+    verts[0*2+0] = destRect.getX2(); verts[0*2+1] = destRect.getY1();
+	verts[1*2+0] = destRect.getX1(); verts[1*2+1] = destRect.getY1();
+	verts[2*2+0] = destRect.getX2(); verts[2*2+1] = destRect.getY2();
+	verts[3*2+0] = destRect.getX1(); verts[3*2+1] = destRect.getY2();
+    
+    texCoords[0*2+0] = textureBounds.x; texCoords[0*2+1] = 0;
+	texCoords[1*2+0] = 0; 				texCoords[1*2+1] = 0;
+	texCoords[2*2+0] = textureBounds.x; texCoords[2*2+1] = textureBounds.y;
+	texCoords[3*2+0] = 0; 				texCoords[3*2+1] = textureBounds.y;
+    
+    glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
+    
+    glDisableClientState( GL_VERTEX_ARRAY );
+    glDisableClientState( GL_TEXTURE_COORD_ARRAY );
 }
 
 CINDER_APP_NATIVE( cinderImageApp, RendererGl )
+
+
